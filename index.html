@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0e14">
+<link rel="manifest" href="manifest.json">
+<title>CT Recon</title>
+<style>
+  :root {
+    --bg:#0a0e14; --surface:#111720; --border:#1e2d3d;
+    --accent:#00d4ff; --accent2:#ff6b35;
+    --text:#c8d8e8; --muted:#4a6070; --hi:#e9f0ff;
+    --g-bg:#1a2a1a; --g-c:#4ade80;
+    --o-bg:#2a1a0a; --o-c:#fb923c;
+    --red:#ff4455; --red-bg:rgba(255,68,85,.08);
+    --sw:260px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden;}
+
+  /* ── TOPBAR ── */
+  .topbar{position:fixed;top:0;left:0;right:0;z-index:300;height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 16px;}
+  .menu-btn{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:5px;width:36px;height:36px;padding:7px;flex-shrink:0;}
+  .menu-btn span{display:block;width:22px;height:2px;background:var(--accent);border-radius:2px;transition:all .25s;}
+  .menu-btn.is-open span:nth-child(1){transform:translateY(7px) rotate(45deg);}
+  .menu-btn.is-open span:nth-child(2){opacity:0;width:0;}
+  .menu-btn.is-open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+  .topbar-title{font-family:monospace;font-size:15px;color:var(--accent);letter-spacing:.08em;flex:1;}
+  .topbar-title span{color:var(--muted);}
+  .scan-badge{font-family:monospace;font-size:11px;padding:3px 8px;border-radius:3px;background:var(--border);color:var(--muted);border:1px solid var(--border);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .edit-mode-btn{background:none;border:1px solid var(--border);cursor:pointer;font-family:monospace;font-size:11px;color:var(--muted);padding:4px 10px;border-radius:3px;letter-spacing:.05em;transition:all .2s;white-space:nowrap;flex-shrink:0;}
+  .edit-mode-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .edit-mode-btn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,53,.08);}
+
+  /* ── OVERLAY / SIDEBAR ── */
+  .overlay{position:fixed;inset:0;top:52px;z-index:150;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .25s;}
+  .overlay.show{opacity:1;pointer-events:all;}
+  .sidebar{position:fixed;top:52px;left:0;bottom:0;z-index:200;width:var(--sw);background:var(--surface);border-right:1px solid var(--border);transform:translateX(0);transition:transform .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;overflow:hidden;}
+  .sidebar.closed{transform:translateX(calc(-1 * var(--sw)));}
+  .sidebar-header{padding:16px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;}
+  .sidebar-header-text h2{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:3px;}
+  .sidebar-header-text p{font-size:13px;color:var(--accent);font-weight:700;}
+  .add-protocol-btn{background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted);width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;flex-shrink:0;display:none;}
+  .add-protocol-btn:hover{border-color:var(--g-c);color:var(--g-c);}
+  .edit-mode .add-protocol-btn{display:flex;}
+  .sidebar-list{flex:1;overflow-y:auto;padding:8px 0;}
+  .sidebar-list::-webkit-scrollbar{width:3px;}
+  .sidebar-list::-webkit-scrollbar-thumb{background:var(--border);}
+  .grp-label{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;padding:12px 16px 4px;}
+  .s-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;border-left:2px solid transparent;transition:all .15s;user-select:none;position:relative;}
+  .s-item:active{background:var(--border);}
+  .s-item.active{border-left-color:var(--accent);background:rgba(0,212,255,.06);}
+  .s-item.active .s-dot{background:var(--accent);}
+  .s-item.active .s-name{color:var(--accent);}
+  .s-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .s-name{font-size:14px;font-weight:600;color:var(--text);flex:1;}
+  .s-tag{font-family:monospace;font-size:10px;padding:2px 6px;border-radius:2px;}
+  .s-tag.plain{background:var(--g-bg);color:var(--g-c);}
+  .s-tag.contrast{background:var(--o-bg);color:var(--o-c);}
+  .s-edit-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:4px;border-radius:3px;opacity:0;transition:opacity .15s;flex-shrink:0;}
+  .edit-mode .s-edit-btn{opacity:1;}
+  .s-edit-btn:hover{color:var(--accent2);}
+
+  /* ── MAIN ── */
+  .main{position:fixed;inset:0;top:52px;left:var(--sw);overflow-y:auto;padding:20px 16px 40px;transition:left .28s cubic-bezier(.4,0,.2,1);}
+  .main.full{left:0;}
+  .main::-webkit-scrollbar{display:none;}
+
+  .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 120px);gap:16px;text-align:center;}
+  .welcome.hidden{display:none;}
+  .welcome-icon{font-size:48px;}
+  .welcome h1{font-family:monospace;font-size:20px;color:var(--accent);letter-spacing:.05em;}
+  .welcome p{font-size:13px;color:var(--muted);max-width:180px;line-height:1.6;}
+
+  .protocol-card{display:none;animation:slideIn .2s ease;}
+  .protocol-card.show{display:block;}
+  @keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+  .card-header{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;}
+  .card-header-text{flex:1;}
+  .card-eyebrow{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
+  .card-title{font-size:26px;font-weight:900;color:var(--hi);line-height:1.1;}
+  .card-title .plus{color:var(--accent2);}
+  .card-tags{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .ctag{font-family:monospace;font-size:11px;padding:4px 10px;border-radius:3px;border:1px solid;}
+  .ctag.plain{color:var(--g-c);border-color:var(--g-c);background:rgba(74,222,128,.06);}
+  .ctag.con{color:var(--o-c);border-color:var(--o-c);background:rgba(251,146,60,.06);}
+  .ctag.info{color:var(--accent);border-color:var(--accent);background:rgba(0,212,255,.06);}
+
+  .card-edit-actions{display:none;flex-direction:column;gap:6px;flex-shrink:0;}
+  .edit-mode .card-edit-actions{display:flex;}
+  .card-action-btn{background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:monospace;font-size:11px;padding:5px 10px;letter-spacing:.05em;transition:all .2s;white-space:nowrap;}
+  .card-action-btn.edit{color:var(--accent);border-color:rgba(0,212,255,.3);}
+  .card-action-btn.edit:hover{background:rgba(0,212,255,.08);}
+  .card-action-btn.del{color:var(--red);border-color:rgba(255,68,85,.3);}
+  .card-action-btn.del:hover{background:var(--red-bg);}
+
+  .sec-label{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px;}
+  .step{display:flex;gap:14px;margin-bottom:10px;padding:13px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;position:relative;overflow:hidden;}
+  .step::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:.4;}
+  .step-num{font-family:monospace;font-size:12px;color:var(--muted);min-width:20px;padding-top:1px;flex-shrink:0;}
+  .step-text{font-size:14px;color:var(--text);line-height:1.55;flex:1;}
+  .step-text strong{color:var(--hi);font-weight:700;}
+  .step-text .key{display:inline-block;font-family:monospace;font-size:12px;background:var(--border);border:1px solid var(--muted);border-bottom-width:2px;color:var(--accent);padding:1px 7px;border-radius:3px;}
+  .step-text .val{color:var(--accent2);font-weight:600;font-family:monospace;font-size:13px;}
+  .substep{display:flex;gap:10px;margin-bottom:6px;margin-left:20px;padding:10px 13px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:6px;position:relative;overflow:hidden;}
+  .substep::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--muted);opacity:.35;}
+  .substep-text{font-size:13px;color:var(--text);line-height:1.5;flex:1;}
+  .substep-text strong{color:var(--hi);}
+  .substep-text .val{color:var(--accent2);font-weight:600;font-family:monospace;font-size:13px;}
+
+  .send-section{margin-top:20px;padding:14px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.2);border-radius:6px;}
+  .send-label{font-family:monospace;font-size:10px;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px;}
+  .send-grid{display:flex;flex-wrap:wrap;gap:8px;}
+  .send-chip{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--hi);background:var(--surface);border:1px solid var(--border);padding:6px 12px;border-radius:20px;}
+  .send-chip .con-dot{width:6px;height:6px;border-radius:50%;background:var(--o-c);flex-shrink:0;}
+  .send-footer{margin-top:10px;font-family:monospace;font-size:11px;color:var(--muted);}
+  .note-box{margin-top:14px;padding:12px 14px;background:rgba(255,107,53,.06);border:1px solid rgba(255,107,53,.2);border-radius:6px;font-size:13px;color:var(--o-c);line-height:1.5;}
+  .note-box strong{color:var(--accent2);}
+
+  /* ── MODAL ── */
+  .modal-backdrop{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s;}
+  .modal-backdrop.show{opacity:1;pointer-events:all;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px 12px 0 0;width:100%;max-width:560px;max-height:92vh;display:flex;flex-direction:column;transform:translateY(40px);transition:transform .28s cubic-bezier(.4,0,.2,1);}
+  .modal-backdrop.show .modal{transform:translateY(0);}
+  .modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .modal-title{font-family:monospace;font-size:13px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;padding:2px 6px;border-radius:3px;}
+  .modal-close:hover{color:var(--hi);}
+  .modal-body{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
+  .modal-body::-webkit-scrollbar{width:3px;}
+  .modal-body::-webkit-scrollbar-thumb{background:var(--border);}
+  .modal-footer{padding:16px 20px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0;}
+
+  /* ── FORM ELEMENTS ── */
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .flabel{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;}
+  .finput{background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--hi);font-size:14px;padding:9px 12px;outline:none;transition:border-color .15s;width:100%;font-family:inherit;}
+  .finput:focus{border-color:var(--accent);}
+  .finput::placeholder{color:var(--muted);}
+  textarea.finput{resize:vertical;min-height:64px;line-height:1.5;}
+  .fhint{font-size:11px;color:var(--muted);line-height:1.5;}
+  .toggle-row{display:flex;align-items:center;gap:12px;}
+  .toggle{position:relative;width:40px;height:22px;flex-shrink:0;}
+  .toggle input{opacity:0;width:0;height:0;position:absolute;}
+  .toggle-track{position:absolute;inset:0;background:var(--border);border-radius:11px;cursor:pointer;transition:background .2s;}
+  .toggle input:checked + .toggle-track{background:var(--o-c);}
+  .toggle-thumb{position:absolute;left:3px;top:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;}
+  .toggle input:checked ~ .toggle-thumb{transform:translateX(18px);}
+  .toggle-label{font-size:13px;color:var(--text);}
+
+  /* dynamic list rows */
+  .list-section{display:flex;flex-direction:column;gap:6px;}
+  .list-row{display:flex;gap:8px;align-items:flex-start;}
+  .list-row .finput{flex:1;}
+  .list-row select.finput{flex:0 0 90px;}
+  .icon-btn{background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--muted);width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:all .15s;align-self:center;}
+  .icon-btn.remove:hover{border-color:var(--red);color:var(--red);}
+  .icon-btn.add{color:var(--g-c);border-color:rgba(74,222,128,.3);}
+  .icon-btn.add:hover{background:rgba(74,222,128,.06);}
+  .add-row-btn{display:flex;align-items:center;gap:8px;background:none;border:1px dashed var(--border);border-radius:5px;cursor:pointer;color:var(--muted);font-size:13px;padding:8px 12px;transition:all .15s;width:100%;}
+  .add-row-btn:hover{border-color:var(--g-c);color:var(--g-c);}
+
+  /* save/cancel buttons */
+  .btn{border:none;border-radius:5px;cursor:pointer;font-size:14px;font-weight:600;padding:10px 20px;transition:all .2s;flex:1;}
+  .btn.primary{background:var(--accent);color:#0a0e14;}
+  .btn.primary:hover{background:#00bcdf;}
+  .btn.ghost{background:var(--border);color:var(--text);}
+  .btn.ghost:hover{background:var(--muted);}
+  .btn.danger{background:var(--red-bg);color:var(--red);border:1px solid rgba(255,68,85,.3);}
+  .btn.danger:hover{background:rgba(255,68,85,.18);}
+
+  /* confirm dialog */
+  .confirm-backdrop{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .confirm-backdrop.show{opacity:1;pointer-events:all;}
+  .confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:320px;width:100%;text-align:center;}
+  .confirm-box h3{font-size:16px;color:var(--hi);margin-bottom:8px;}
+  .confirm-box p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:20px;}
+  .confirm-actions{display:flex;gap:10px;}
+
+  /* ── SIDEBAR TABS ── */
+  .sidebar-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .sidebar-tab{flex:1;background:none;border:none;cursor:pointer;font-family:monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:10px 0;color:var(--muted);border-bottom:2px solid transparent;transition:all .18s;margin-bottom:-1px;}
+  .sidebar-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+  .sidebar-pane{display:none;flex:1;overflow-y:auto;flex-direction:column;}
+  .sidebar-pane.active{display:flex;}
+  .sidebar-pane::-webkit-scrollbar{width:3px;}
+  .sidebar-pane::-webkit-scrollbar-thumb{background:var(--border);}
+
+  /* notes sidebar list */
+  .notes-list-wrap{padding:8px 0;flex:1;}
+  .note-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;border-left:2px solid transparent;transition:all .15s;user-select:none;}
+  .note-item:active{background:var(--border);}
+  .note-item.active{border-left-color:var(--accent2);background:rgba(255,107,53,.06);}
+  .note-item.active .n-dot{background:var(--accent2);}
+  .note-item.active .n-title{color:var(--accent2);}
+  .n-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+  .n-title{font-size:14px;font-weight:600;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .n-edit-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:4px;border-radius:3px;opacity:0;transition:opacity .15s;flex-shrink:0;}
+  .edit-mode .n-edit-btn{opacity:1;}
+  .n-edit-btn:hover{color:var(--accent2);}
+  .notes-add-btn{margin:8px 16px 16px;display:none;align-items:center;justify-content:center;gap:8px;background:none;border:1px dashed rgba(74,222,128,.3);border-radius:5px;cursor:pointer;color:var(--g-c);font-size:13px;padding:9px;transition:all .15s;}
+  .notes-add-btn:hover{background:rgba(74,222,128,.06);}
+  .edit-mode .notes-add-btn{display:flex;}
+
+  /* note card */
+  .note-card{display:none;animation:slideIn .2s ease;}
+  .note-card.show{display:block;}
+  .note-card-header{margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;}
+  .note-card-header-text{flex:1;}
+  .note-card-eyebrow{font-family:monospace;font-size:10px;color:var(--muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
+  .note-card-title{font-size:22px;font-weight:900;color:var(--hi);line-height:1.2;}
+  .note-body-text{font-size:14px;color:var(--text);line-height:1.7;white-space:pre-wrap;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;position:relative;overflow:hidden;}
+  .note-body-text::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent2);opacity:.5;}
+
+  /* edit mode banner */
+  .edit-banner{display:none;background:rgba(255,107,53,.07);border-bottom:1px solid rgba(255,107,53,.2);padding:6px 16px;font-family:monospace;font-size:11px;color:var(--o-c);letter-spacing:.05em;text-align:center;}
+  .edit-mode-active .edit-banner{display:block;}
+</style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<div class="edit-banner" id="editBanner">✏ EDIT MODE — tap any protocol to view, use buttons to edit or delete</div>
+
+<header class="topbar">
+  <button class="menu-btn is-open" id="menuBtn" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="topbar-title">CT<span>/</span>RECON</div>
+  <div class="scan-badge" id="topBadge">—</div>
+  <button class="edit-mode-btn" id="editModeBtn" onclick="toggleEditMode()">EDIT</button>
+</header>
+
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-header-text">
+      <h2>CT Reconstruction</h2>
+      <p>Protocol Reference</p>
+    </div>
+    <button class="add-protocol-btn" id="addProtocolBtn" onclick="openModal()" title="Add protocol">+</button>
+  </div>
+  <div class="sidebar-tabs">
+    <button class="sidebar-tab active" id="tabProtocols" onclick="switchTab('protocols')">Protocols</button>
+    <button class="sidebar-tab" id="tabNotes" onclick="switchTab('notes')">Notes</button>
+  </div>
+  <div class="sidebar-pane active" id="paneProtocols">
+    <div class="sidebar-list" id="sidebarList"></div>
+  </div>
+  <div class="sidebar-pane" id="paneNotes">
+    <div class="notes-list-wrap" id="notesList"></div>
+    <button class="notes-add-btn" onclick="openNoteModal()">+ Add note</button>
+  </div>
+</nav>
+
+<main class="main" id="main">
+  <div class="welcome" id="welcome">
+    <div class="welcome-icon">🧠</div>
+    <h1>CT RECON</h1>
+    <p>Select a protocol from the sidebar</p>
+  </div>
+  <div class="protocol-card" id="protocolCard"></div>
+  <div class="note-card" id="noteCard"></div>
+</main>
+
+<!-- Edit / Add Protocol Modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">ADD PROTOCOL</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- injected by JS -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveProtocol()">Save Protocol</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete Dialog -->
+<div class="confirm-backdrop" id="confirmBackdrop">
+  <div class="confirm-box">
+    <h3 id="confirmTitle">Delete Protocol?</h3>
+    <p id="confirmMsg">This cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Modal -->
+<div class="modal-backdrop" id="noteModalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="noteModalTitle">ADD NOTE</div>
+      <button class="modal-close" onclick="closeNoteModal()">×</button>
+    </div>
+    <div class="modal-body" id="noteModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" onclick="closeNoteModal()">Cancel</button>
+      <button class="btn primary" onclick="saveNote()">Save Note</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── BUILT-IN PROTOCOLS ────────────────────────────────────────────────────
+const BUILTIN = [
+  // NEURO
+  {
+    id:"brain", group:"Neuro", name:"Brain", contrast:false,
+    tags:["Axial only","Bone kernel"],
+    steps:[
+      {text:"Axial plane only"},
+      {text:"Right-click <strong>FOV number</strong> → set to <span class='val'>5 / Average</span>"},
+      {text:"Press <span class='key'>F7</span>"}
+    ],
+    send:[{label:"Axial 5mm"},{label:"Scout"}]
+  },
+  {
+    id:"brain_con", group:"Neuro", name:"Brain+", contrast:true,
+    tags:["Axial only","Bone kernel","Contrast"],
+    steps:[
+      {text:"On the <strong>plain</strong> acquisition — Axial only, right-click <strong>FOV</strong> → <span class='val'>5 / Average</span>, press <span class='key'>F7</span>"},
+      {text:"On the <strong>contrast</strong> acquisition — repeat the same steps"}
+    ],
+    send:[{label:"Axial"},{label:"Axial+",con:true}]
+  },
+  {
+    id:"brain_angio", group:"Neuro", name:"Brain / Chest Angio", contrast:true,
+    tags:["Angio neck protocol","Sharpness 4","3 Planes"],
+    steps:[
+      {text:"Use <strong>Angio neck</strong> protocol"},
+      {text:"Set <strong>Sharpness = <span class='val'>4</span></strong> (same role as bone kernel — controls edge detail; higher = sharper vessel walls, more noise)"},
+      {text:"Reformat in <strong>all three planes</strong>"}
+    ],
+    send:[{label:"Scout"},{label:"Brain Angio"},{label:"Axial"},{label:"Coronal"},{label:"Sagittal"}]
+  },
+  // HEAD & NECK
+  {
+    id:"sinuses", group:"Head & Neck", name:"Sinuses", contrast:false,
+    tags:["3 Planes"],
+    steps:[{text:"Reformat in <strong>all three planes</strong>"}],
+    send:[{label:"Scout"},{label:"Axial"},{label:"Coronal"},{label:"Sagittal"}]
+  },
+  {
+    id:"neck", group:"Head & Neck", name:"Neck Soft Tissue", contrast:true,
+    tags:["3 Planes","Reformat ×2","Contrast"],
+    steps:[
+      {text:"Reformat the <strong>plain</strong> acquisition in all three planes"},
+      {text:"Reformat the <strong>contrast</strong> acquisition in all three planes"}
+    ],
+    send:[
+      {label:"Axial"},{label:"Coronal"},{label:"Sagittal"},
+      {label:"Axial+",con:true},{label:"Coronal+",con:true},{label:"Sagittal+",con:true}
+    ],
+    sendFooter:"6 series — 3 plain · 3 contrast"
+  },
+  {
+    id:"maxfac", group:"Head & Neck", name:"Maxillofacial", contrast:false,
+    tags:["3 Planes"],
+    steps:[
+      {text:"Reformat in <strong>all three planes</strong>"}
+    ],
+    send:[{label:"Scout"},{label:"Ax"},{label:"Cor"},{label:"Sag"}]
+  },
+  // CHEST
+  {
+    id:"chest", group:"Chest", name:"Chest", contrast:false,
+    tags:["Scout → Stnd","Coronal"],
+    steps:[
+      {text:"Send all series stacked <strong>from Scout through to Stnd</strong> (inclusive)"},
+      {text:"Reformat <strong>Coronal</strong>"}
+    ],
+    send:[{label:"Scout → Stnd (all)"},{label:"Coronal"}]
+  },
+  {
+    id:"chest_con", group:"Chest", name:"Chest+", contrast:true,
+    tags:["Contrast","Coronal"],
+    steps:[{text:"Reformat <strong>Coronal</strong> on the <strong>contrast</strong> acquisition"}],
+    send:[{label:"Scout"},{label:"Stnd"},{label:"Lung"},{label:"Stnd 0.6"},{label:"C++",con:true},{label:"Coronal+",con:true}]
+  },
+  {
+    id:"pe", group:"Chest", name:"PE", contrast:true,
+    tags:["Contrast","Coronal 10mm"],
+    steps:[
+      {text:"Reformat <strong>Axial</strong> on the contrast acquisition"},
+      {text:"Reformat <strong>Coronal</strong> — right-click → set thickness to <span class='val'>10mm</span>"}
+    ],
+    send:[{label:"Scout"},{label:"0.625"},{label:"Axial+",con:true},{label:"Coronal 10mm",con:true}]
+  },
+  // ABDOMEN
+  {
+    id:"abd", group:"Abdomen", name:"Abdomen", contrast:false,
+    tags:["3 Planes","Spec125"],
+    steps:[
+      {text:"Reformat in <strong>all three planes</strong>"},
+      {text:"<strong>Spec125</strong> is a raw acquisition series — send directly, no reformat needed"}
+    ],
+    send:[{label:"Axial"},{label:"Coronal"},{label:"Sagittal"},{label:"Spec125"}]
+  },
+  {
+    id:"abd_con", group:"Abdomen", name:"Abdomen+", contrast:true,
+    tags:["Contrast","Spec125","Cor + Sag reformat"],
+    steps:[
+      {text:"<strong>Scout</strong>, <strong>Without</strong>, <strong>C++</strong>, and <strong>Spec125</strong> are raw series — send directly"},
+      {text:"Reformat the <strong>contrast</strong> acquisition: Coronal and Sagittal"}
+    ],
+    send:[
+      {label:"Scout"},{label:"Without"},
+      {label:"C++",con:true},{label:"Spec125",con:true},
+      {label:"Cor+",con:true},{label:"Sag+",con:true}
+    ]
+  },
+  {
+    id:"abd_pel_con", group:"Abdomen", name:"Abdomen-Pelvis+", contrast:true,
+    tags:["Contrast","3 Planes","Spec+"],
+    steps:[
+      {text:"<strong>Scout</strong>, <strong>Without</strong>, <strong>C++</strong>, and <strong>Spec+</strong> are raw series — send directly"},
+      {text:"Reformat the <strong>contrast</strong> acquisition: Coronal and Sagittal"}
+    ],
+    send:[
+      {label:"Scout"},{label:"Without"},
+      {label:"C++",con:true},{label:"Spec+",con:true},{label:"Coronal+",con:true},{label:"Sagittal+",con:true}
+    ]
+  },
+  {
+    id:"kub", group:"Abdomen", name:"KUB / Renal", contrast:false,
+    tags:["Oblique","Urinary","Cor label"],
+    steps:[
+      {text:"Choose <strong>Oblique</strong> orientation"},
+      {text:"Choose <strong>Urinary</strong> preset"},
+      {text:"Extend box to cover <strong>full abdomen</strong>"},
+      {text:"On the <strong>Sagittal</strong> view only — set description/label to <span class='val'>Cor</span>"}
+    ],
+    send:[{label:"Scout"},{label:"5mm"},{label:"Cor"}],
+    note:"The sagittal series is intentionally labelled <strong>Cor</strong> in the system."
+  },
+  // PELVIS
+  {
+    id:"pelvis_con", group:"Pelvis", name:"Pelvis+", contrast:true,
+    tags:["Contrast","3 Planes","Spec125"],
+    steps:[
+      {text:"<strong>Scout</strong>, <strong>Without</strong>, <strong>C++</strong>, and <strong>Spec125</strong> are raw series — send directly"},
+      {text:"Reformat the <strong>contrast</strong> acquisition in all three planes"}
+    ],
+    send:[
+      {label:"Scout"},{label:"Without"},
+      {label:"C++",con:true},{label:"Spec125",con:true},
+      {label:"Cor+",con:true},{label:"Sag+",con:true},{label:"Ax+",con:true}
+    ]
+  },
+  {
+    id:"pelvis", group:"Pelvis", name:"Pelvis", contrast:false,
+    tags:["3 Planes","Spec"],
+    steps:[
+      {text:"Reformat in <strong>all three planes</strong>"},
+      {text:"<strong>Spec</strong> is a raw acquisition series — send directly, no reformat needed"}
+    ],
+    send:[{label:"Axial"},{label:"Coronal"},{label:"Sagittal"},{label:"Spec"}]
+  },
+  // SPINE
+  {
+    id:"lumbar", group:"Spine", name:"Lumbar", contrast:false,
+    tags:["3 Planes","3D VR","Spec slices"],
+    steps:[
+      {text:"Reformat in <strong>all three planes</strong> using <span class='val'>Spec slices</span> (not Bone — better quality)"},
+      {text:"Create <strong>3D reconstruction</strong>:"},
+      {text:"Right-click <strong>Axial</strong> → <strong>VR</strong>", sub:true},
+      {text:"Use <strong>scissors</strong> to remove unwanted objects", sub:true},
+      {text:"Save — set description to <span class='val'>3D</span>", sub:true}
+    ],
+    send:[{label:"Axial"},{label:"Coronal"},{label:"Sagittal"},{label:"3D"}]
+  },
+  {
+    id:"si", group:"Spine", name:"SI Joint", contrast:false,
+    tags:["3 Planes"],
+    steps:[{text:"Reformat in <strong>all three planes</strong>"}],
+    send:[{label:"Axial"},{label:"Coronal"},{label:"Sagittal"}]
+  }
+];
+
+// ─── BUILT-IN NOTES ────────────────────────────────────────────────────────
+const BUILTIN_NOTES = [
+  {
+    id:"note_wrist",
+    title:"Wrist Positioning",
+    body:"Centre at 240.\n\nWrist between the lines.\n\nRaise patient until you see the sagittal lasers."
+  },
+  {
+    id:"note_lower_abd",
+    title:"Lower Abdomen Protocol",
+    body:"Take the whole mesenteric artery.\n\nScan from abdomen all the way down to toes."
+  },
+  {
+    id:"note_ban",
+    title:"BAN CT",
+    body:"Chest, Abdomen, Pelvis (CAP).\n\nFull BAN CT protocol."
+  },
+  {
+    id:"note_delay",
+    title:"Delay Scan",
+    body:"Used for tri-phase and KUB+.\n\nAfter contrast injection, wait 10–15 minutes then take a without-contrast scan."
+  },
+  {
+    id:"note_pe_eval",
+    title:"PE Evaluation",
+    body:"On a good PE scan, only the PE vessels should be filled — nothing above, nothing below, and none of the neighbouring vessels.\n\nOn coronal view: heart should show two sides — one filled, one not. If this is absent, the scan is a fail.\n\nIf the patient is not fit (shortness of breath etc.), the scan should be discarded."
+  },
+  {
+    id:"note_iv",
+    title:"No Oral Contrast in CT",
+    body:"There is no oral-only contrast in CT.\n\nAlways give IV contrast."
+  }
+];
+const STORAGE_KEY = 'ct-recon-protocols-v3';
+const NOTES_KEY = 'ct-recon-notes-v2';
+let protocols = [];
+let notes = [];
+let editingId = null;
+let editingNoteId = null;
+let deleteTargetId = null;
+let deleteTargetType = null;
+let editMode = false;
+let currentProtocolId = null;
+let currentNoteId = null;
+let activeTab = 'protocols';
+
+function loadProtocols() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    protocols = saved ? JSON.parse(saved) : BUILTIN.map(p => ({...p}));
+    if (!saved) saveToStorage();
+  } catch(e) { protocols = BUILTIN.map(p => ({...p})); }
+}
+
+function loadNotes() {
+  try {
+    const saved = localStorage.getItem(NOTES_KEY);
+    notes = saved ? JSON.parse(saved) : BUILTIN_NOTES.map(n => ({...n}));
+    if (!saved) saveNotes();
+  } catch(e) { notes = BUILTIN_NOTES.map(n => ({...n})); }
+}
+
+function saveToStorage() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(protocols)); } catch(e) {}
+}
+
+function saveNotes() {
+  try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch(e) {}
+}
+
+function resetToDefaults() {
+  protocols = BUILTIN.map(p => ({...p}));
+  saveToStorage();
+}
+
+// ─── SIDEBAR RENDER ────────────────────────────────────────────────────────
+function buildSidebar() {
+  const groups = {};
+  protocols.forEach(p => { if (!groups[p.group]) groups[p.group]=[]; groups[p.group].push(p); });
+  const list = document.getElementById('sidebarList');
+  list.innerHTML = '';
+  Object.entries(groups).forEach(([g, items]) => {
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="grp-label">${g}</div>`;
+    items.forEach(p => {
+      const el = document.createElement('div');
+      el.className = 's-item' + (p.id === currentProtocolId ? ' active' : '');
+      el.dataset.id = p.id;
+      el.innerHTML = `
+        <div class="s-dot"></div>
+        <div class="s-name">${p.name}</div>
+        <div class="s-tag ${p.contrast?'contrast':'plain'}">${p.contrast?'CON':'PLAIN'}</div>
+        <button class="s-edit-btn" onclick="event.stopPropagation();openModal('${p.id}')" title="Edit">✎</button>
+      `;
+      el.addEventListener('click', () => loadProtocol(p.id));
+      div.appendChild(el);
+    });
+    list.appendChild(div);
+  });
+}
+
+function buildNotesList() {
+  const list = document.getElementById('notesList');
+  list.innerHTML = '';
+  if (!notes.length) {
+    list.innerHTML = '<div style="padding:24px 16px;font-size:13px;color:var(--muted);text-align:center;">No notes yet.<br>Enable edit mode to add one.</div>';
+    return;
+  }
+  notes.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'note-item' + (n.id === currentNoteId ? ' active' : '');
+    el.innerHTML = `
+      <div class="n-dot"></div>
+      <div class="n-title">${escHtml(n.title)}</div>
+      <button class="n-edit-btn" onclick="event.stopPropagation();openNoteModal('${n.id}')" title="Edit">✎</button>
+    `;
+    el.addEventListener('click', () => loadNote(n.id));
+    list.appendChild(el);
+  });
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tabProtocols').classList.toggle('active', tab==='protocols');
+  document.getElementById('tabNotes').classList.toggle('active', tab==='notes');
+  document.getElementById('paneProtocols').classList.toggle('active', tab==='protocols');
+  document.getElementById('paneNotes').classList.toggle('active', tab==='notes');
+  // show/hide the + add protocol button
+  document.getElementById('addProtocolBtn').style.display = (tab==='protocols') ? '' : 'none';
+}
+
+// ─── PROTOCOL CARD ────────────────────────────────────────────────────────
+function loadProtocol(id) {
+  const p = protocols.find(x => x.id === id);
+  if (!p) return;
+  currentProtocolId = id;
+  currentNoteId = null;
+  buildSidebar();
+  buildNotesList();
+  document.getElementById('topBadge').textContent = p.name;
+  document.getElementById('welcome').classList.add('hidden');
+  document.getElementById('noteCard').className = 'note-card';
+
+  const tagsHtml = (p.tags||[]).map(t => {
+    const cls = t==='Contrast'?'con':(t.includes('3D')||t.includes('Spec')||t.includes('Reformat')||t.includes('Sharpness')||t.includes('Angio'))?'info':'plain';
+    return `<span class="ctag ${cls}">${t}</span>`;
+  }).join('');
+
+  let stepNum = 0;
+  const stepsHtml = (p.steps||[]).map(s => {
+    if (s.sub) return `<div class="substep"><div class="substep-text">${s.text}</div></div>`;
+    stepNum++;
+    return `<div class="step"><div class="step-num">${String(stepNum).padStart(2,'0')}</div><div class="step-text">${s.text}</div></div>`;
+  }).join('');
+
+  const sendHtml = (p.send||[]).map(s =>
+    `<div class="send-chip">${s.con?`<span class="con-dot"></span>`:''}${s.label}</div>`
+  ).join('');
+
+  const titleHtml = p.name.replace(/\+/g,'<span class="plus">+</span>');
+
+  document.getElementById('protocolCard').innerHTML = `
+    <div class="card-header">
+      <div class="card-header-text">
+        <div class="card-eyebrow">${p.group} · ${p.contrast?'Contrast':'Non-contrast'}</div>
+        <div class="card-title">${titleHtml}</div>
+        <div class="card-tags">${tagsHtml}</div>
+      </div>
+      <div class="card-edit-actions">
+        <button class="card-action-btn edit" onclick="openModal('${p.id}')">✎ Edit</button>
+        <button class="card-action-btn del" onclick="askDelete('${p.id}')">✕ Delete</button>
+      </div>
+    </div>
+    ${stepsHtml ? `<div class="sec-label">Reconstruction Steps</div>${stepsHtml}` : ''}
+    <div class="send-section">
+      <div class="send-label">Send</div>
+      <div class="send-grid">${sendHtml}</div>
+      ${p.sendFooter?`<div class="send-footer">${p.sendFooter}</div>`:''}
+    </div>
+    ${p.note?`<div class="note-box"><strong>NOTE:</strong> ${p.note}</div>`:''}
+  `;
+  document.getElementById('protocolCard').className = 'protocol-card show';
+  document.getElementById('main').scrollTo(0,0);
+  if (window.innerWidth < 600) closeSidebar();
+}
+
+// ─── NOTE CARD ────────────────────────────────────────────────────────────
+function loadNote(id) {
+  const n = notes.find(x => x.id === id);
+  if (!n) return;
+  currentNoteId = id;
+  currentProtocolId = null;
+  buildNotesList();
+  buildSidebar();
+  document.getElementById('topBadge').textContent = n.title;
+  document.getElementById('welcome').classList.add('hidden');
+  document.getElementById('protocolCard').className = 'protocol-card';
+  document.getElementById('noteCard').innerHTML = `
+    <div class="note-card-header">
+      <div class="note-card-header-text">
+        <div class="note-card-eyebrow">General Note</div>
+        <div class="note-card-title">${escHtml(n.title)}</div>
+      </div>
+      <div class="card-edit-actions">
+        <button class="card-action-btn edit" onclick="openNoteModal('${n.id}')">✎ Edit</button>
+        <button class="card-action-btn del" onclick="askDeleteNote('${n.id}')">✕ Delete</button>
+      </div>
+    </div>
+    <div class="note-body-text">${escHtml(n.body)}</div>
+  `;
+  document.getElementById('noteCard').className = 'note-card show';
+  document.getElementById('main').scrollTo(0,0);
+  if (window.innerWidth < 600) closeSidebar();
+}
+
+// ─── EDIT MODE ─────────────────────────────────────────────────────────────
+function toggleEditMode() {
+  editMode = !editMode;
+  document.body.classList.toggle('edit-mode', editMode);
+  document.getElementById('editModeBtn').classList.toggle('active', editMode);
+  document.getElementById('editModeBtn').textContent = editMode ? 'DONE' : 'EDIT';
+  document.getElementById('editBanner').parentElement.classList.toggle('edit-mode-active', editMode);
+  // re-use body class on a wrapper — simpler: toggle on body
+  document.body.classList.toggle('edit-mode-active', editMode);
+}
+
+// ─── MODAL ─────────────────────────────────────────────────────────────────
+function openModal(id) {
+  editingId = id || null;
+  const p = id ? protocols.find(x => x.id === id) : null;
+  document.getElementById('modalTitle').textContent = id ? 'EDIT PROTOCOL' : 'ADD PROTOCOL';
+
+  // Build list of existing groups for datalist
+  const existingGroups = [...new Set(protocols.map(x => x.group))];
+  const groupOptions = existingGroups.map(g => `<option value="${g}">`).join('');
+
+  const steps = p ? p.steps : [{text:'', sub:false}];
+  const sends = p ? p.send : [{label:'', con:false}];
+  const tags = p ? p.tags : [''];
+
+  document.getElementById('modalBody').innerHTML = `
+    <datalist id="groupList">${groupOptions}</datalist>
+
+    <div class="field-row">
+      <div class="field">
+        <label class="flabel">Protocol Name *</label>
+        <input class="finput" id="f_name" placeholder="e.g. Chest HRCT" value="${p?escHtml(p.name):''}">
+      </div>
+      <div class="field">
+        <label class="flabel">Group *</label>
+        <input class="finput" id="f_group" list="groupList" placeholder="e.g. Chest" value="${p?escHtml(p.group):''}">
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="f_contrast" ${p&&p.contrast?'checked':''}>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        <span class="toggle-label">Contrast study</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="flabel">Tags</label>
+      <div class="list-section" id="tagsSection">
+        ${tags.map((t,i) => tagRow(t,i)).join('')}
+      </div>
+      <button class="add-row-btn" onclick="addTag()">+ Add tag</button>
+    </div>
+
+    <div class="field">
+      <label class="flabel">Steps</label>
+      <div class="fhint">Use plain text. For sub-steps, toggle the indent button.</div>
+      <div class="list-section" id="stepsSection" style="margin-top:8px;">
+        ${steps.map((s,i) => stepRow(s.text, s.sub||false, i)).join('')}
+      </div>
+      <button class="add-row-btn" onclick="addStep()">+ Add step</button>
+    </div>
+
+    <div class="field">
+      <label class="flabel">Send List</label>
+      <div class="fhint">Each chip shown in the Send section. Toggle contrast dot for contrast series.</div>
+      <div class="list-section" id="sendsSection" style="margin-top:8px;">
+        ${sends.map((s,i) => sendRow(s.label, s.con||false, i)).join('')}
+      </div>
+      <button class="add-row-btn" onclick="addSend()">+ Add send item</button>
+    </div>
+
+    <div class="field">
+      <label class="flabel">Send Footer <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <input class="finput" id="f_sendFooter" placeholder="e.g. 6 series — 3 plain · 3 contrast" value="${p&&p.sendFooter?escHtml(p.sendFooter):''}">
+    </div>
+
+    <div class="field">
+      <label class="flabel">Note <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+      <textarea class="finput" id="f_note" placeholder="Any additional notes shown at bottom of card">${p&&p.note?escHtml(p.note):''}</textarea>
+    </div>
+  `;
+
+  document.getElementById('modalBackdrop').classList.add('show');
+}
+
+function tagRow(val, i) {
+  return `<div class="list-row" id="tag_${i}">
+    <input class="finput" placeholder="e.g. 3 Planes" value="${escHtml(val)}">
+    <button class="icon-btn remove" onclick="removeRow('tagsSection','tag_${i}')">✕</button>
+  </div>`;
+}
+
+function stepRow(val, isSub, i) {
+  return `<div class="list-row" id="step_${i}">
+    <select class="finput" style="flex:0 0 80px">
+      <option value="step" ${!isSub?'selected':''}>Step</option>
+      <option value="sub" ${isSub?'selected':''}>↳ Sub</option>
+    </select>
+    <input class="finput" placeholder="Step text (HTML allowed for bold/val)" value="${escHtml(val)}">
+    <button class="icon-btn remove" onclick="removeRow('stepsSection','step_${i}')">✕</button>
+  </div>`;
+}
+
+function sendRow(val, isCon, i) {
+  return `<div class="list-row" id="send_${i}">
+    <input class="finput" placeholder="e.g. Coronal+" value="${escHtml(val)}">
+    <select class="finput" style="flex:0 0 80px">
+      <option value="plain" ${!isCon?'selected':''}>Plain</option>
+      <option value="con" ${isCon?'selected':''}>Con ●</option>
+    </select>
+    <button class="icon-btn remove" onclick="removeRow('sendsSection','send_${i}')">✕</button>
+  </div>`;
+}
+
+let tagCounter = 100, stepCounter = 100, sendCounter = 100;
+
+function addTag() {
+  const sec = document.getElementById('tagsSection');
+  const id = 'tag_' + (tagCounter++);
+  const div = document.createElement('div');
+  div.innerHTML = `<div class="list-row" id="${id}">
+    <input class="finput" placeholder="e.g. 3 Planes" value="">
+    <button class="icon-btn remove" onclick="removeRow('tagsSection','${id}')">✕</button>
+  </div>`;
+  sec.appendChild(div.firstElementChild);
+}
+
+function addStep() {
+  const sec = document.getElementById('stepsSection');
+  const id = 'step_' + (stepCounter++);
+  const div = document.createElement('div');
+  div.innerHTML = `<div class="list-row" id="${id}">
+    <select class="finput" style="flex:0 0 80px"><option value="step">Step</option><option value="sub">↳ Sub</option></select>
+    <input class="finput" placeholder="Step text">
+    <button class="icon-btn remove" onclick="removeRow('stepsSection','${id}')">✕</button>
+  </div>`;
+  sec.appendChild(div.firstElementChild);
+}
+
+function addSend() {
+  const sec = document.getElementById('sendsSection');
+  const id = 'send_' + (sendCounter++);
+  const div = document.createElement('div');
+  div.innerHTML = `<div class="list-row" id="${id}">
+    <input class="finput" placeholder="e.g. Coronal+" value="">
+    <select class="finput" style="flex:0 0 80px"><option value="plain">Plain</option><option value="con">Con ●</option></select>
+    <button class="icon-btn remove" onclick="removeRow('sendsSection','${id}')">✕</button>
+  </div>`;
+  sec.appendChild(div.firstElementChild);
+}
+
+function removeRow(sectionId, rowId) {
+  const sec = document.getElementById(sectionId);
+  const row = document.getElementById(rowId);
+  if (sec && row && sec.children.length > 1) row.remove();
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('show');
+  editingId = null;
+}
+
+function saveProtocol() {
+  const name = document.getElementById('f_name').value.trim();
+  const group = document.getElementById('f_group').value.trim();
+  if (!name || !group) { alert('Name and Group are required.'); return; }
+
+  // collect tags
+  const tags = [...document.querySelectorAll('#tagsSection .list-row input')]
+    .map(i => i.value.trim()).filter(Boolean);
+
+  // collect steps
+  const steps = [...document.querySelectorAll('#stepsSection .list-row')].map(row => {
+    const sel = row.querySelector('select').value;
+    const txt = row.querySelector('input').value.trim();
+    return { text: txt, sub: sel === 'sub' };
+  }).filter(s => s.text);
+
+  // collect send
+  const send = [...document.querySelectorAll('#sendsSection .list-row')].map(row => {
+    const lbl = row.querySelector('input').value.trim();
+    const con = row.querySelector('select').value === 'con';
+    return { label: lbl, con };
+  }).filter(s => s.label);
+
+  const sendFooter = document.getElementById('f_sendFooter').value.trim();
+  const note = document.getElementById('f_note').value.trim();
+  const contrast = document.getElementById('f_contrast').checked;
+
+  if (editingId) {
+    const idx = protocols.findIndex(p => p.id === editingId);
+    if (idx > -1) {
+      protocols[idx] = { ...protocols[idx], name, group, contrast, tags, steps, send,
+        sendFooter: sendFooter || undefined, note: note || undefined };
+    }
+  } else {
+    const id = 'custom_' + Date.now();
+    protocols.push({ id, name, group, contrast, tags, steps, send,
+      sendFooter: sendFooter || undefined, note: note || undefined });
+  }
+
+  saveToStorage();
+  buildSidebar();
+  closeModal();
+
+  // reload card if we just edited the currently viewed protocol
+  if (editingId && editingId === currentProtocolId) loadProtocol(editingId);
+}
+
+// ─── NOTE MODAL ───────────────────────────────────────────────────────────
+function openNoteModal(id) {
+  editingNoteId = id || null;
+  const n = id ? notes.find(x => x.id === id) : null;
+  document.getElementById('noteModalTitle').textContent = id ? 'EDIT NOTE' : 'ADD NOTE';
+  document.getElementById('noteModalBody').innerHTML = `
+    <div class="field">
+      <label class="flabel">Title *</label>
+      <input class="finput" id="fn_title" placeholder="e.g. Wrist Positioning" value="${n?escHtml(n.title):''}">
+    </div>
+    <div class="field">
+      <label class="flabel">Note Content *</label>
+      <textarea class="finput" id="fn_body" style="min-height:160px" placeholder="Write your note here...">${n?escHtml(n.body):''}</textarea>
+    </div>
+  `;
+  document.getElementById('noteModalBackdrop').classList.add('show');
+}
+
+function closeNoteModal() {
+  document.getElementById('noteModalBackdrop').classList.remove('show');
+  editingNoteId = null;
+}
+
+function saveNote() {
+  const title = document.getElementById('fn_title').value.trim();
+  const body = document.getElementById('fn_body').value.trim();
+  if (!title || !body) { alert('Title and content are required.'); return; }
+
+  if (editingNoteId) {
+    const idx = notes.findIndex(n => n.id === editingNoteId);
+    if (idx > -1) notes[idx] = { ...notes[idx], title, body };
+  } else {
+    notes.push({ id: 'note_custom_' + Date.now(), title, body });
+  }
+  saveNotes();
+  buildNotesList();
+  closeNoteModal();
+  if (editingNoteId && editingNoteId === currentNoteId) loadNote(editingNoteId);
+}
+
+function askDeleteNote(id) {
+  const n = notes.find(x => x.id === id);
+  deleteTargetId = id;
+  deleteTargetType = 'note';
+  document.getElementById('confirmTitle').textContent = 'Delete Note?';
+  document.getElementById('confirmMsg').textContent = `"${n.title}" will be permanently removed.`;
+  document.getElementById('confirmBackdrop').classList.add('show');
+}
+
+// ─── DELETE ────────────────────────────────────────────────────────────────
+function askDelete(id) {
+  const p = protocols.find(x => x.id === id);
+  deleteTargetId = id;
+  deleteTargetType = 'protocol';
+  document.getElementById('confirmTitle').textContent = 'Delete Protocol?';
+  document.getElementById('confirmMsg').textContent = `"${p.name}" will be permanently removed.`;
+  document.getElementById('confirmBackdrop').classList.add('show');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmBackdrop').classList.remove('show');
+  deleteTargetId = null;
+  deleteTargetType = null;
+}
+
+function confirmDelete() {
+  if (!deleteTargetId) return;
+  if (deleteTargetType === 'note') {
+    notes = notes.filter(n => n.id !== deleteTargetId);
+    saveNotes();
+    if (currentNoteId === deleteTargetId) {
+      currentNoteId = null;
+      document.getElementById('noteCard').className = 'note-card';
+      document.getElementById('welcome').classList.remove('hidden');
+      document.getElementById('topBadge').textContent = '—';
+    }
+    buildNotesList();
+  } else {
+    protocols = protocols.filter(p => p.id !== deleteTargetId);
+    saveToStorage();
+    if (currentProtocolId === deleteTargetId) {
+      currentProtocolId = null;
+      document.getElementById('protocolCard').className = 'protocol-card';
+      document.getElementById('welcome').classList.remove('hidden');
+      document.getElementById('topBadge').textContent = '—';
+    }
+    buildSidebar();
+  }
+  closeConfirm();
+}
+
+// ─── SIDEBAR TOGGLE ────────────────────────────────────────────────────────
+let sidebarOpen = true;
+function toggleSidebar(){ sidebarOpen ? closeSidebar() : openSidebar(); }
+function openSidebar(){
+  sidebarOpen = true;
+  document.getElementById('sidebar').classList.remove('closed');
+  document.getElementById('menuBtn').classList.add('is-open');
+  if (window.innerWidth < 600){
+    document.getElementById('main').classList.add('full');
+    document.getElementById('overlay').classList.add('show');
+  } else {
+    document.getElementById('main').classList.remove('full');
+  }
+}
+function closeSidebar(){
+  sidebarOpen = false;
+  document.getElementById('sidebar').classList.add('closed');
+  document.getElementById('main').classList.add('full');
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('menuBtn').classList.remove('is-open');
+}
+function handleResize(){
+  if (!sidebarOpen) return;
+  if (window.innerWidth < 600){
+    document.getElementById('main').classList.add('full');
+    document.getElementById('overlay').classList.add('show');
+  } else {
+    document.getElementById('main').classList.remove('full');
+    document.getElementById('overlay').classList.remove('show');
+  }
+}
+window.addEventListener('resize', handleResize);
+
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (tx < 40 && dx > 60 && !sidebarOpen) openSidebar();
+  if (sidebarOpen && dx < -50) closeSidebar();
+});
+
+// close modal on backdrop click
+document.getElementById('modalBackdrop').addEventListener('click', function(e){
+  if (e.target === this) closeModal();
+});
+document.getElementById('noteModalBackdrop').addEventListener('click', function(e){
+  if (e.target === this) closeNoteModal();
+});
+
+// ─── UTILS ────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+loadProtocols();
+loadNotes();
+buildSidebar();
+buildNotesList();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
